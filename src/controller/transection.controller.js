@@ -99,37 +99,48 @@ async function createTransection(req, res) {
    */
   const session = await mongoose.startSession();
   session.startTransaction();
-  const transection = await transectionModel.create(
-    {
-      fromAccount,
-      toAccount,
-      amount,
-      idempotencyKey,
-      status: "PENDING",
-    },
-    { session },
-  );
+  const transection = (await transectionModel.create([{
+    fromAccount,
+    toAccount,
+    amount,
+    idempotencyKey,
+    status: "PENDING",
+  }],{session}))[0];
 
   const debitLedgerEntry = await ledgerModel.create(
-    {
-      accountId: fromAccount,
-      type: "DEBIT",
-      amount: amount,
-      transectionId: transection._id,
-    },
-    { session },
-  );
-  const creditLedgerEntry = await ledgerModel.create(
-    {
-      accountId: toAccount,
-      type: "CREDIT",
-      amount: amount,
-      transectionId: transection._id,
-    },
+    [
+      {
+        account: fromAccount,
+        type: "DEBIT",
+        amount: amount,
+        transection: transection._id,
+      },
+    ],
     { session },
   );
 
-  transection.status = "COMPLETED";
+  await (() => {
+    return new Promise((resolve) => setTimeout(resolve, 100 * 1000));
+  });
+
+  const creditLedgerEntry = await ledgerModel.create(
+    [
+      {
+        account: toAccount,
+        type: "CREDIT",
+        amount: amount,
+        transection: transection._id,
+      },
+    ],
+    { session },
+  );
+
+  await transectionModel.findOneAndUpdate(
+    {_id:transection._id},
+    {status:"COMPLETED"},
+    {session}
+  )
+  
   await transection.save({ session });
   await session.commitTransaction();
   session.endSession();
