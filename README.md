@@ -28,6 +28,7 @@ A Node.js backend for a simple banking system, supporting user authentication, a
     │   ├── ledger.model.js
     │   ├── transaction.model.js
     │   └── user.model.js
+    |   |__ blacklist.model.js
     ├── routes/
     │   ├── accounts.routes.js
     │   ├── auth.routes.js
