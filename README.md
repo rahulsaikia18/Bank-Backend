@@ -2,67 +2,195 @@
 
 A Node.js backend for a simple banking system, supporting user authentication, account management, transactions, and ledger tracking. Built with Express and MongoDB.
 
-## Features
-- User registration & authentication
-- Account creation & management
-- Transaction processing (deposits, withdrawals, transfers)
-- Ledger tracking for all accounts
-- Email notifications for key actions
+🏦 Bank-Backend
 
-## Project Structure
+A secure, production-style banking backend built with Node.js, Express, MongoDB, and JWT, implementing real-world concepts like accounts, ledger-based balance calculation, idempotent transactions, authentication, authorization, and email notifications.
+
+This project follows clean architecture and banking-grade transaction principles (ledger system, atomic transactions, immutability).
+
+---
+
+## 🚀 Features
+
+🔐 JWT Authentication (Login / Register / Logout)
+
+👤 User & System User roles
+
+🏦 Multiple bank accounts per user
+
+📒 Ledger-based accounting system
+
+💰 Atomic money transfers using MongoDB transactions
+
+🔁 Idempotent transactions (safe retries)
+
+📊 Real-time balance calculation
+
+❌ Token blacklisting on logout
+
+📧 Email notifications using Nodemailer (OAuth2)
+
+🛡️ Protected & role-based routes
+
+⏳ Auto-expiring blacklisted tokens
+
+---
+
+## 🗂️ Project Structure
 ```
+Bank-Backend
 ├── package.json
 ├── server.js
-└── src/
+├── .env
+└── src
     ├── app.js
-    ├── config/
+    ├── config
     │   └── db.js
-    ├── controller/
+    ├── controller
     │   ├── account.controller.js
     │   ├── auth.controller.js
     │   └── transection.controller.js
-    ├── middleware/
+    ├── middleware
     │   └── auth.middlware.js
-    ├── models/
+    ├── models
+    │   ├── user.model.js
     │   ├── account.model.js
     │   ├── ledger.model.js
     │   ├── transaction.model.js
-    │   └── user.model.js
-    |   |__ blacklist.model.js
-    ├── routes/
-    │   ├── accounts.routes.js
+    │   └── blacklist.model.js
+    ├── routes
     │   ├── auth.routes.js
+    │   ├── accounts.routes.js
     │   └── transection.routes.js
-    └── services/
+    └── services
         └── email.service.js
 ```
 
-## Getting Started
+---
 
-### Prerequisites
-- Node.js (v14+ recommended)
-- MongoDB
+## 🧠 Core Concepts Used
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone <repo-url>
-   cd Banking system
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Configure environment variables:
-   - Create a `.env` file in the root directory.
-   - Add your MongoDB URI and other secrets:
-     ```env
-     MONGODB_URI=your_mongodb_uri
-     JWT_SECRET=your_jwt_secret
-     EMAIL_USER=your_email
-     EMAIL_PASS=your_email_password
-     ```
+### 1️⃣ Ledger System (Banking Style)
+- Balance is never stored
+- Balance = Total Credits − Total Debits
+- Ledger entries are immutable
 
+### 2️⃣ Atomic Transactions
+- Uses MongoDB sessions
+- Debit + Credit happen in a single transaction
+- Prevents partial updates
+
+### 3️⃣ Idempotency
+- Each transaction requires a unique idempotencyKey
+- Prevents duplicate transfers on retries
+
+### 4️⃣ Security
+- JWT authentication
+- Token blacklisting on logout
+- Role-based access for system operations
+
+---
+
+## 🔑 Environment Variables
+
+Create a .env file in the root directory:
+
+```env
+# DATABASE CONFIG
+MONGO_URI=
+
+# JWT CONFIG
+JWT_SECRET=
+
+# NODEMAILER CONFIG (Gmail OAuth2)
+CLIENT_ID=
+CLIENT_SECRET=
+REFRESH_TOKEN=
+EMAIL_USER=
+```
+
+---
+
+## 📦 Installation & Setup
+
+```bash
+# Clone repository
+
+
+# Move into directory
+cd Bank-Backend
+
+# Install dependencies
+npm install
+
+# Start server
+node server.js
+```
+
+Server will run on:
+
+http://localhost:3000
+
+---
+
+## 🔌 API Endpoints
+
+### 🔐 Auth Routes
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/logout
+
+### 🏦 Account Routes (Protected)
+POST   /api/accounts
+GET    /api/accounts
+GET    /api/accounts/balance/:accountId
+
+### 💸 Transaction Routes (Protected)
+POST   /api/transection
+POST   /api/transection/system/initial-funds
+
+---
+
+## 📧 Email Notifications
+- Welcome email on registration
+- Transaction success email
+- Transaction failure email
+- Implemented using Nodemailer + Gmail OAuth2
+
+---
+
+## ⚠️ Important Notes
+- Ledger entries cannot be updated or deleted
+- Transactions are fully ACID compliant
+- Token blacklist entries auto-delete after 3 days
+- Designed to mimic real banking systems
+
+---
+
+## 🛠️ Tech Stack
+- Node.js
+- Express.js
+- MongoDB + Mongoose
+- JWT
+- Nodemailer
+- bcrypt
+- Cookie-parser
+
+---
+
+## 📌 Future Improvements
+- Transaction reversal system
+- Rate limiting
+- Admin dashboard
+- Audit logs
+- Swagger API documentation
+
+---
+
+## 👨‍💻 Author
+
+Rahul Saikia  
+Full Stack Developer | MERN
 ### Running the Server
 ```bash
 nodemon server.js
