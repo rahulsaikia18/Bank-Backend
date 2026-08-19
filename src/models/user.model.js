@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
         "Please fill a valid email address",
       ],
-      unique: true,
+      unique: true, // ← implicit unique index: used by findOne({ email }) in auth.service.js
     },
     name: {
       type: String,
@@ -31,21 +31,16 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 userSchema.pre("save", async function () {
-  if (!this.isModified("password")) {
-    return;
-  }
-  const hash = await bcrypt.hash(this.password, 10);
-  this.password = hash;
+  if (!this.isModified("password")) return;
+  this.password = await bcrypt.hash(this.password, 10);
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 const userModel = mongoose.model("user", userSchema);
