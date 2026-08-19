@@ -2,7 +2,7 @@ const transactionService = require("../services/transaction.service");
 const asyncHandler = require("../utils/asyncHandler");
 
 const createTransaction = asyncHandler(async (req, res) => {
-  const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
+  const { fromAccount, toAccount, amount, idempotencyKey } = req.body; // validated by Zod
   const result = await transactionService.createTransaction({
     fromAccount,
     toAccount,
@@ -12,14 +12,13 @@ const createTransaction = asyncHandler(async (req, res) => {
   });
 
   const statusCode = result.statusCode || 200;
-  const responseData = { ...result };
-  delete responseData.statusCode;
+  const { statusCode: _sc, ...responseData } = result;
 
-  res.status(statusCode).json(responseData);
+  res.status(statusCode).json({ success: true, ...responseData });
 });
 
 const createInitialFunds = asyncHandler(async (req, res) => {
-  const { toAccount, amount, idempotencyKey } = req.body;
+  const { toAccount, amount, idempotencyKey } = req.body; // validated by Zod
   const result = await transactionService.createInitialFunds({
     toAccount,
     amount,
@@ -28,14 +27,13 @@ const createInitialFunds = asyncHandler(async (req, res) => {
   });
 
   const statusCode = result.statusCode || 201;
-  const responseData = { ...result };
-  delete responseData.statusCode;
+  const { statusCode: _sc, ...responseData } = result;
 
-  res.status(statusCode).json(responseData);
+  res.status(statusCode).json({ success: true, ...responseData });
 });
 
 module.exports = {
   createTransaction,
   createInitialFunds,
-  createTransection: createTransaction, // Alias for backward compatibility
+  createTransection: createTransaction, // backward-compat alias
 };
