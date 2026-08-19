@@ -18,8 +18,40 @@ const addRequestId = winston.format((info) => {
   return info;
 });
 
+// Middleware to redact sensitive information (PII, Passwords, Tokens)
+const redactSensitive = winston.format((info) => {
+  const sensitiveKeys = ["password", "token", "authorization", "jwt", "secret", "cvv", "pin"];
+  
+  const redact = (obj) => {
+    if (typeof obj !== "object" || obj === null) return obj;
+    if (Array.isArray(obj)) return obj.map(redact);
+    
+    const clone = { ...obj };
+    for (const key in clone) {
+      if (sensitiveKeys.some(k => key.toLowerCase().includes(k))) {
+        clone[key] = "[REDACTED]";
+      } else if (typeof clone[key] === "object") {
+        clone[key] = redact(clone[key]);
+      }
+    }
+    return clone;
+  };
+
+  for (const key in info) {
+    if (!["level", "message", "timestamp", "requestId", "stack", "splat"].includes(key)) {
+      if (sensitiveKeys.some(k => key.toLowerCase().includes(k))) {
+        info[key] = "[REDACTED]";
+      } else if (typeof info[key] === "object") {
+        info[key] = redact(info[key]);
+      }
+    }
+  }
+  return info;
+});
+
 const devFormat = combine(
   addRequestId(),
+  redactSensitive(),
   colorize({ all: true }),
   timestamp({ format: "HH:mm:ss" }),
   errors({ stack: true }),
@@ -32,6 +64,7 @@ const devFormat = combine(
 
 const prodFormat = combine(
   addRequestId(),
+  redactSensitive(),
   timestamp(),
   errors({ stack: true }),
   json()
