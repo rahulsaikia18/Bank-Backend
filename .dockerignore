@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+
+# Environment files (never bake secrets into the image)
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Logs — these are ephemeral and belong on the host or a log driver
+logs
+*.log
+
+# Test artifacts
+coverage
+tests
+
+# Dev tooling
+.eslintrc*
+.prettierrc*
+nodemon.json
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+.dockerignore
