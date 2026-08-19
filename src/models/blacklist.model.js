@@ -19,8 +19,7 @@ const tokenBlacklistSchema = new mongoose.Schema(
 // protected API call to check whether the JWT was revoked on logout.
 // The unique constraint also prevents duplicate blacklist entries.
 //
-// (Auto-created; declared explicitly here for documentation purposes)
-tokenBlacklistSchema.index({ token: 1 }, { unique: true });
+// (Auto-created by unique:true; no need for explicit schema.index call)
 
 // Index 2: { createdAt: 1 } — TTL index (auto-expires documents)
 // Blacklisted tokens are only meaningful for the duration of the JWT

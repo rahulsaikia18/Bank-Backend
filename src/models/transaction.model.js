@@ -42,8 +42,7 @@ const transactionSchema = new mongoose.Schema(
 // The unique constraint also enforces at the DB level that no two transfers
 // share the same key, even under concurrent writes.
 //
-// (Declared explicitly here for documentation; Mongoose creates it from unique:true)
-transactionSchema.index({ idempotencyKey: 1 }, { unique: true });
+// (Declared via unique:true; no explicit index call needed)
 
 // Index 2: { fromAccount: 1, createdAt: -1 }
 // Query: GET /api/transactions?accountId=X (sent transactions, sorted newest-first)
