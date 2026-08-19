@@ -1,13 +1,41 @@
 # ─── HorizontalPodAutoscaler ──────────────────────────────────────────────────
 #
-# Automatically scales the number of bank-api pods based on CPU and memory.
+# Automatically scales bank-api pods based on CPU and memory load.
 #
-# How it works:
-#   The K8s metrics-server watches CPU/memory usage across all pods.
-#   If average CPU > 70%  → scale up (add pods, up to maxReplicas)
-#   If average CPU < 70%  → scale down (remove pods, down to minReplicas)
+# HOW TO OBSERVE SCALING IN ACTION
+# ─────────────────────────────────
 #
-# Prerequisites:
+#  Terminal 1 — Watch pods scale in real time:
+#    kubectl get pods -l app=bank-api -w
+#
+#  Terminal 2 — Watch HPA decisions:
+#    kubectl get hpa bank-api-hpa -w
+#
+#  Terminal 3 — Run the load test:
+#    node scripts/loadtest.js
+#
+# WHAT YOU SHOULD SEE
+# ─────────────────────
+#
+#   Idle (no traffic):
+#     bank-api-xxxx-1   Running   (cpu: ~2%)
+#     bank-api-xxxx-2   Running   (cpu: ~2%)
+#     HPA: 2/2 replicas
+#
+#   Under load (loadtest.js running):
+#     cpu avg > 70% → HPA fires
+#     bank-api-xxxx-3   Pending → Running   (scale-up event)
+#     bank-api-xxxx-4   Pending → Running
+#     HPA: 4/10 replicas
+#
+#   After load stops (5-min stabilization window):
+#     cpu avg < 70% for 300s → HPA fires
+#     bank-api-xxxx-3   Terminating        (scale-down event)
+#     bank-api-xxxx-4   Terminating
+#     HPA: 2/10 replicas  ← back to minimum
+#
+# PREREQUISITES
+# ─────────────
 #   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 #
 apiVersion: autoscaling/v2
@@ -23,41 +51,60 @@ spec:
     kind: Deployment
     name: bank-api
 
-  # Always maintain at least 2 pods for high availability
+  # Minimum replicas — always run 2 for high availability (one per AZ ideally)
   minReplicas: 2
 
-  # Maximum pods before you need to investigate vertical scaling
+  # Maximum replicas — cap before escalating to vertical scaling investigation
   maxReplicas: 10
 
   metrics:
-    # Scale up when average CPU across all pods exceeds 70%
+    # ── CPU Metric ─────────────────────────────────────────────────────────
+    # Compares actual CPU used vs the "requests.cpu" value in deployment.yaml
+    # (100m). If pods average > 70% of 100m = 70m CPU, scale up.
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70
+          averageUtilization: 70   # %  of resources.requests.cpu
 
-    # Scale up when average memory across all pods exceeds 80%
+    # ── Memory Metric ──────────────────────────────────────────────────────
+    # Memory doesn't shrink after GC as aggressively, so use 80% threshold.
+    # Node.js heap is typically 60-100MB at idle; 400MB+ under load.
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80
+          averageUtilization: 80   # % of resources.requests.memory
 
   behavior:
+    # ── Scale Up: fast and aggressive ──────────────────────────────────────
     scaleUp:
-      # Scale up quickly when traffic spikes (banking traffic is bursty)
+      # React within 30s of sustained high load
+      # (short window = responsive to banking traffic spikes)
       stabilizationWindowSeconds: 30
       policies:
+        # Add up to 2 pods every 60 seconds
         - type: Pods
-          value: 2          # Add up to 2 pods at a time
+          value: 2
           periodSeconds: 60
+        # OR add up to 100% of current pods every 60 seconds (whichever adds more)
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+      # selectPolicy: Max → pick whichever policy adds the most pods
+      selectPolicy: Max
+
+    # ── Scale Down: slow and conservative ──────────────────────────────────
     scaleDown:
-      # Scale down slowly to avoid thrashing
-      stabilizationWindowSeconds: 300  # Wait 5 minutes of calm before scaling down
+      # Wait 5 full minutes of calm CPU before removing any pods.
+      # Prevents yo-yo behaviour where a momentary dip triggers removal
+      # and the next request spike immediately requires a scale-up again.
+      stabilizationWindowSeconds: 300
       policies:
+        # Remove at most 1 pod every 2 minutes
         - type: Pods
-          value: 1          # Remove only 1 pod at a time
+          value: 1
           periodSeconds: 120
+      selectPolicy: Min

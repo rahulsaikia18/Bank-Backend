@@ -8,7 +8,8 @@
     "dev": "npx nodemon server.js",
     "lint": "eslint src/ server.js",
     "lint:fix": "eslint src/ server.js --fix",
-    "test": "jest --runInBand --detectOpenHandles"
+    "test": "jest --runInBand --detectOpenHandles",
+    "loadtest": "node scripts/loadtest.js"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "autocannon": "^8.0.0",
     "eslint": "^10.8.1",
     "ioredis-mock": "^8.13.1",
     "jest": "^30.4.2",
