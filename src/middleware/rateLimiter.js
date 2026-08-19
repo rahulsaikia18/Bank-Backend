@@ -22,9 +22,10 @@ const apiLimiter = rateLimit({
 });
 
 const authLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 10,
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 5, // Limit each IP to 5 login/register attempts per minute
   skip: skipTests,
+  statusCode: 429, // Explicitly enforce 429 Too Many Requests
   standardHeaders: true,
   legacyHeaders: false,
   store: process.env.NODE_ENV === "test" ? undefined : new RedisStore({
@@ -33,7 +34,7 @@ const authLimiter = rateLimit({
   }),
   message: {
     success: false,
-    message: "Too many authentication attempts, please try again after 5 minutes.",
+    message: "Too many authentication attempts, please try again after 1 minute.",
   },
 });
 
