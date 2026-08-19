@@ -127,4 +127,4 @@ npm run loadtest
 
 ## 👨‍💻 Author
 **Rahul Saikia**  
-Full Stack Developer | Node.js Architecture
+Software Engineer
