@@ -79,11 +79,36 @@ services:
     networks:
       - bank_network
 
+  # ── Grafana ───────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: bank_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Provision Prometheus datasource automatically
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # Provision dashboard loader config
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Mount the actual dashboard JSON files
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - bank_network
+
 # ── Persistent volumes ────────────────────────────────────────────────────────
 volumes:
   mongo_data:
   redis_data:
   prometheus_data:
+  grafana_data:
 
 # ── Internal bridge network ───────────────────────────────────────────────────
 networks:
