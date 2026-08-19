@@ -1,3 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment — NEVER commit secrets
 .env
-node_modules
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
 a.api
