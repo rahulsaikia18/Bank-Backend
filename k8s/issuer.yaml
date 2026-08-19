@@ -1,0 +1,28 @@
+# ─── ClusterIssuer: Automated Let's Encrypt TLS Certificates ────────────────
+#
+# This resource tells cert-manager how to obtain TLS certificates.
+# We use the ACME HTTP-01 challenge here, which proves you own the domain
+# by placing a temporary file on your web server that Let's Encrypt reads.
+#
+# Prerequisites:
+#   1. Your domain (e.g., api.yourbank.com) must point to the Nginx Ingress External IP.
+#   2. cert-manager must be installed in the cluster.
+#
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # The ACME server URL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email address used for ACME registration (Let's Encrypt uses this to contact you about expiring certs)
+    email: your-email@yourbank.com # ← replace with your real email
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    # Enable the HTTP-01 challenge provider
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
