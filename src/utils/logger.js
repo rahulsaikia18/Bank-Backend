@@ -1,6 +1,7 @@
 const winston = require("winston");
 const DailyRotateFile = require("winston-daily-rotate-file");
 const path = require("path");
+const asyncContext = require("./asyncContext");
 
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isDev = NODE_ENV === "development";
@@ -8,17 +9,29 @@ const isDev = NODE_ENV === "development";
 // ─── Custom log format ──────────────────────────────────────────────────────
 const { combine, timestamp, printf, colorize, errors, json } = winston.format;
 
+// Middleware to inject requestId into the log info object
+const addRequestId = winston.format((info) => {
+  const store = asyncContext.getStore();
+  if (store && store.get("requestId")) {
+    info.requestId = store.get("requestId");
+  }
+  return info;
+});
+
 const devFormat = combine(
+  addRequestId(),
   colorize({ all: true }),
   timestamp({ format: "HH:mm:ss" }),
   errors({ stack: true }),
-  printf(({ level, message, timestamp, stack, ...meta }) => {
+  printf(({ level, message, timestamp, stack, requestId, ...meta }) => {
     const metaStr = Object.keys(meta).length ? `\n${JSON.stringify(meta, null, 2)}` : "";
-    return `${timestamp}  ${level}  ${stack || message}${metaStr}`;
+    const reqPrefix = requestId ? `[${requestId}] ` : "";
+    return `${timestamp}  ${level}  ${reqPrefix}${stack || message}${metaStr}`;
   })
 );
 
 const prodFormat = combine(
+  addRequestId(),
   timestamp(),
   errors({ stack: true }),
   json()
