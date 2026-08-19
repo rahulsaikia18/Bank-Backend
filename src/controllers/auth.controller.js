@@ -25,8 +25,14 @@ const userLogoutController = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, ...result });
 });
 
+const getUserProfile = asyncHandler(async (req, res) => {
+  const result = await authService.getUserProfile(req.user._id);
+  res.status(200).json({ success: true, user: result });
+});
+
 module.exports = {
   userRegisterController,
   userLoginController,
   userLogoutController,
+  getUserProfile,
 };

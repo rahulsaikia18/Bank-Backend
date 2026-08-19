@@ -4,6 +4,7 @@ const tokenBlacklistModel = require("../models/blacklist.model");
 const emailService = require("./email.service");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
+const redisClient = require("../config/redis");
 
 async function registerUser({ email, password, name }) {
   const isExists = await userModel.findOne({ email });
@@ -65,4 +66,27 @@ async function logoutUser(token) {
   return { message: "Logout Successfully" };
 }
 
-module.exports = { registerUser, loginUser, logoutUser };
+async function getUserProfile(userId) {
+  const cacheKey = `user_profile:${userId}`;
+  
+  // 1. Check Redis Cache First
+  const cachedData = await redisClient.get(cacheKey);
+  if (cachedData) {
+    logger.info({ message: "Cache hit for user profile", userId });
+    return JSON.parse(cachedData);
+  }
+
+  // 2. Cache Miss -> Query MongoDB (exclude password)
+  logger.info({ message: "Cache miss for user profile", userId });
+  const user = await userModel.findById(userId).select("-password -__v");
+  if (!user) {
+    throw new AppError("User not found", 404, "USER_NOT_FOUND");
+  }
+
+  // 3. Store in Redis (Expire in 1 hour)
+  await redisClient.set(cacheKey, JSON.stringify(user), "EX", 3600);
+  
+  return user;
+}
+
+module.exports = { registerUser, loginUser, logoutUser, getUserProfile };

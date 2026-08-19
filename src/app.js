@@ -4,6 +4,7 @@ const cookieParser = require("cookie-parser");
 const requestId = require("./middleware/requestId.middleware");
 const morganMiddleware = require("./middleware/morgan.middleware");
 const errorHandler = require("./middleware/errorHandler");
+const { apiLimiter } = require("./middleware/rateLimiter");
 
 // Routers
 const authRouter = require("./routes/auth.routes");
@@ -17,6 +18,9 @@ app.use(requestId);          // stamp every request with a unique requestId
 app.use(express.json());
 app.use(cookieParser());
 app.use(morganMiddleware);   // HTTP request logs → Winston
+
+// Apply Global Rate Limiting (Redis-backed)
+app.use("/api", apiLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRouter);
