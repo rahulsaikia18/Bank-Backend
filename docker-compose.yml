@@ -59,10 +59,31 @@ services:
     networks:
       - bank_network
 
+  # ── Prometheus ────────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: bank_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - bank-api
+    networks:
+      - bank_network
+
 # ── Persistent volumes ────────────────────────────────────────────────────────
 volumes:
   mongo_data:
   redis_data:
+  prometheus_data:
 
 # ── Internal bridge network ───────────────────────────────────────────────────
 networks:
