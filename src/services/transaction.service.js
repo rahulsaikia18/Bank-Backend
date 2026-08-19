@@ -3,109 +3,72 @@ const transactionModel = require("../models/transaction.model");
 const ledgerModel = require("../models/ledger.model");
 const accountModel = require("../models/account.model");
 const emailService = require("./email.service");
-const ApiError = require("../utils/apiError");
+const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
 
 async function createTransaction({ fromAccount, toAccount, amount, idempotencyKey, user }) {
-  if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
-    throw new ApiError(400, "fromAccount, toAccount, amount and idempotencyKey are required");
-  }
-
   const fromUserAccount = await accountModel.findOne({ _id: fromAccount });
   const toUserAccount = await accountModel.findOne({ _id: toAccount });
 
   if (!fromUserAccount || !toUserAccount) {
-    throw new ApiError(404, "One or both accounts not found");
+    throw new AppError("One or both accounts not found", 404, "ACCOUNT_NOT_FOUND");
   }
 
-  // Check Idempotency Key
+  // Idempotency check
   const existingTransaction = await transactionModel.findOne({ idempotencyKey });
   if (existingTransaction) {
     if (existingTransaction.status === "COMPLETED") {
-      return {
-        statusCode: 200,
-        message: "Transaction already completed",
-        status: "success",
-        transaction: existingTransaction,
-      };
+      return { statusCode: 200, message: "Transaction already completed", status: "success", transaction: existingTransaction };
     }
     if (existingTransaction.status === "PENDING") {
-      return {
-        statusCode: 200,
-        message: "Transaction is pending",
-        status: "success",
-        transaction: existingTransaction,
-      };
+      return { statusCode: 200, message: "Transaction is pending", status: "success", transaction: existingTransaction };
     }
     if (existingTransaction.status === "FAILED") {
-      throw new ApiError(500, "Transaction already failed");
+      throw new AppError("Transaction already failed", 409, "TRANSACTION_FAILED");
     }
     if (existingTransaction.status === "REVERSED") {
-      throw new ApiError(500, "Transaction already reversed");
+      throw new AppError("Transaction already reversed", 409, "TRANSACTION_REVERSED");
     }
   }
 
-  // Check Account Status
+  // Account status check
   if (fromUserAccount.status !== "ACTIVE" || toUserAccount.status !== "ACTIVE") {
-    throw new ApiError(400, "One or both accounts are not active");
+    throw new AppError("One or both accounts are not active", 400, "ACCOUNT_NOT_ACTIVE");
   }
 
-  // Check balance
+  // Balance check
   const balance = await fromUserAccount.getBalance();
   if (balance < amount) {
-    throw new ApiError(
+    throw new AppError(
+      `Insufficient balance. Available: ${balance}, Requested: ${amount}`,
       400,
-      `Insufficient balance. Current balance is ${balance}. Requested amount is ${amount}`
+      "INSUFFICIENT_BALANCE"
     );
   }
 
-  // Mongoose Session for Atomic Money Transfer
+  // Atomic MongoDB session transaction
   const session = await mongoose.startSession();
   session.startTransaction();
 
   let transaction;
   try {
-    const [createdTransaction] = await transactionModel.create(
-      [
-        {
-          fromAccount,
-          toAccount,
-          amount,
-          idempotencyKey,
-          status: "PENDING",
-        },
-      ],
-      { session }
-    );
-    transaction = createdTransaction;
-
-    await ledgerModel.create(
-      [
-        {
-          account: fromAccount,
-          type: "DEBIT",
-          amount: amount,
-          transaction: transaction._id,
-        },
-      ],
+    [transaction] = await transactionModel.create(
+      [{ fromAccount, toAccount, amount, idempotencyKey, status: "PENDING" }],
       { session }
     );
 
     await ledgerModel.create(
-      [
-        {
-          account: toAccount,
-          type: "CREDIT",
-          amount: amount,
-          transaction: transaction._id,
-        },
-      ],
+      [{ account: fromAccount, type: "DEBIT", amount, transaction: transaction._id }],
+      { session }
+    );
+
+    await ledgerModel.create(
+      [{ account: toAccount, type: "CREDIT", amount, transaction: transaction._id }],
       { session }
     );
 
     transaction.status = "COMPLETED";
     await transaction.save({ session });
-
     await session.commitTransaction();
   } catch (error) {
     await session.abortTransaction();
@@ -114,20 +77,14 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
     session.endSession();
   }
 
-  // Send email asynchronously
-  if (user && user.email) {
-    emailService.sendTransactionEmail(user.email, user.name, amount, toUserAccount._id).catch((err) => {
-      logger.error({ message: "Failed to send transaction email", error: err.message });
-    });
+  // Fire-and-forget email
+  if (user?.email) {
+    emailService
+      .sendTransactionEmail(user.email, user.name, amount, toUserAccount._id)
+      .catch((err) => logger.error({ message: "Failed to send transaction email", error: err.message }));
   }
 
-  logger.info({
-    message: "Transaction completed",
-    transactionId: transaction._id,
-    fromAccount,
-    toAccount,
-    amount,
-  });
+  logger.info({ message: "Transaction completed", transactionId: transaction._id, fromAccount, toAccount, amount });
 
   return {
     statusCode: 200,
@@ -138,18 +95,14 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
 }
 
 async function createInitialFunds({ toAccount, amount, idempotencyKey, systemUserId }) {
-  if (!toAccount || !amount || !idempotencyKey) {
-    throw new ApiError(400, "toAccount, amount and idempotencyKey are required");
-  }
-
   const toUserAccount = await accountModel.findOne({ _id: toAccount });
   if (!toUserAccount) {
-    throw new ApiError(404, "Account not found");
+    throw new AppError("Account not found", 404, "ACCOUNT_NOT_FOUND");
   }
 
   const fromAccount = await accountModel.findOne({ user: systemUserId });
   if (!fromAccount) {
-    throw new ApiError(404, "System account not found");
+    throw new AppError("System account not found", 404, "SYSTEM_ACCOUNT_NOT_FOUND");
   }
 
   const session = await mongoose.startSession();
@@ -157,47 +110,23 @@ async function createInitialFunds({ toAccount, amount, idempotencyKey, systemUse
 
   let transaction;
   try {
-    const [createdTransaction] = await transactionModel.create(
-      [
-        {
-          fromAccount: fromAccount._id,
-          toAccount,
-          amount,
-          idempotencyKey,
-          status: "PENDING",
-        },
-      ],
-      { session }
-    );
-    transaction = createdTransaction;
-
-    await ledgerModel.create(
-      [
-        {
-          account: fromAccount._id,
-          type: "DEBIT",
-          amount: amount,
-          transaction: transaction._id,
-        },
-      ],
+    [transaction] = await transactionModel.create(
+      [{ fromAccount: fromAccount._id, toAccount, amount, idempotencyKey, status: "PENDING" }],
       { session }
     );
 
     await ledgerModel.create(
-      [
-        {
-          account: toAccount,
-          type: "CREDIT",
-          amount: amount,
-          transaction: transaction._id,
-        },
-      ],
+      [{ account: fromAccount._id, type: "DEBIT", amount, transaction: transaction._id }],
+      { session }
+    );
+
+    await ledgerModel.create(
+      [{ account: toAccount, type: "CREDIT", amount, transaction: transaction._id }],
       { session }
     );
 
     transaction.status = "COMPLETED";
     await transaction.save({ session });
-
     await session.commitTransaction();
   } catch (error) {
     await session.abortTransaction();
@@ -205,6 +134,8 @@ async function createInitialFunds({ toAccount, amount, idempotencyKey, systemUse
   } finally {
     session.endSession();
   }
+
+  logger.info({ message: "Initial funds deposited", transactionId: transaction._id, toAccount, amount });
 
   return {
     statusCode: 201,
@@ -214,7 +145,4 @@ async function createInitialFunds({ toAccount, amount, idempotencyKey, systemUse
   };
 }
 
-module.exports = {
-  createTransaction,
-  createInitialFunds,
-};
+module.exports = { createTransaction, createInitialFunds };

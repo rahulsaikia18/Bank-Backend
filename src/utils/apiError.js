@@ -1,12 +1,5 @@
-class ApiError extends Error {
-  constructor(statusCode, message) {
-    super(message);
-    this.statusCode = statusCode;
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    this.isOperational = true;
-
-    Error.captureStackTrace(this, this.constructor);
-  }
-}
-
-module.exports = ApiError;
+/**
+ * Re-export AppError as ApiError for backward compatibility.
+ * Any existing code using ApiError continues to work unchanged.
+ */
+module.exports = require("./AppError");

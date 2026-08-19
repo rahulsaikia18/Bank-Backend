@@ -2,13 +2,13 @@ const jwt = require("jsonwebtoken");
 const userModel = require("../models/user.model");
 const tokenBlacklistModel = require("../models/blacklist.model");
 const emailService = require("./email.service");
-const ApiError = require("../utils/apiError");
+const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
 
 async function registerUser({ email, password, name }) {
   const isExists = await userModel.findOne({ email });
   if (isExists) {
-    throw new ApiError(422, "User already exists");
+    throw new AppError("User already exists", 422, "USER_ALREADY_EXISTS");
   }
 
   const user = await userModel.create({ email, password, name });
@@ -34,12 +34,12 @@ async function registerUser({ email, password, name }) {
 async function loginUser({ email, password }) {
   const user = await userModel.findOne({ email }).select("+password");
   if (!user) {
-    throw new ApiError(404, "User not found");
+    throw new AppError("User not found", 404, "USER_NOT_FOUND");
   }
 
   const isValidPassword = await user.comparePassword(password);
   if (!isValidPassword) {
-    throw new ApiError(401, "Invalid password");
+    throw new AppError("Invalid password", 401, "INVALID_CREDENTIALS");
   }
 
   const token = jwt.sign(

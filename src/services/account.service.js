@@ -1,5 +1,5 @@
 const accountModel = require("../models/account.model");
-const ApiError = require("../utils/apiError");
+const AppError = require("../utils/AppError");
 
 async function createAccount(userId, currency = "INR") {
   const account = await accountModel.create({ user: userId, currency });
@@ -28,7 +28,7 @@ async function getUserAccounts(userId, { page = 1, limit = 10 } = {}) {
 async function getAccountBalance(accountId, userId) {
   const account = await accountModel.findOne({ _id: accountId, user: userId });
   if (!account) {
-    throw new ApiError(404, "Account not found");
+    throw new AppError("Account not found", 404, "ACCOUNT_NOT_FOUND");
   }
 
   const balance = await account.getBalance();
@@ -39,8 +39,4 @@ async function getAccountBalance(accountId, userId) {
   };
 }
 
-module.exports = {
-  createAccount,
-  getUserAccounts,
-  getAccountBalance,
-};
+module.exports = { createAccount, getUserAccounts, getAccountBalance };
