@@ -59,23 +59,28 @@ spec:
               cpu: "500m"      # 0.5 CPU core
               memory: "512Mi"
 
-          # ── Liveness Probe ────────────────────────────────────────────────
-          # If this fails repeatedly → Kubernetes restarts the container
+          # ── Liveness Probe → /health/live ─────────────────────────────────
+          # Question: "Is the process alive?"
+          # Action on failure: RESTART the container.
+          # Only checks the Node.js process itself — NOT DB or Redis.
+          # If it fails 3 times × 20s apart → container is restarted.
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 5000
-            initialDelaySeconds: 15   # Give the app time to connect to DB/Redis
+            initialDelaySeconds: 15   # Wait for app to boot before first check
             periodSeconds: 20
             failureThreshold: 3
             timeoutSeconds: 5
 
-          # ── Readiness Probe ───────────────────────────────────────────────
-          # If this fails → pod is removed from the Service load balancer
-          # (traffic stops going to this pod, but it isn't restarted)
+          # ── Readiness Probe → /health/ready ───────────────────────────────
+          # Question: "Can this pod receive traffic right now?"
+          # Action on failure: REMOVE from Service load balancer (no restart).
+          # Checks DB + Redis. If either is down, pod gets zero traffic
+          # until dependencies recover — preventing cascading 500 errors.
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: 5000
             initialDelaySeconds: 10
             periodSeconds: 10
