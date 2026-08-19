@@ -10,6 +10,7 @@ const { apiLimiter } = require("./middleware/rateLimiter");
 const authRouter = require("./routes/auth.routes");
 const accountRouter = require("./routes/accounts.routes");
 const transactionRouter = require("./routes/transaction.routes");
+const healthRouter = require("./routes/health.routes");
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(morganMiddleware);   // HTTP request logs → Winston
 app.use("/api", apiLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
+app.use("/health", healthRouter);                      // Kubernetes liveness probe
 app.use("/api/auth", authRouter);
 app.use("/api/accounts", accountRouter);
 app.use("/api/transactions", transactionRouter);

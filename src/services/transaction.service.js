@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const transactionModel = require("../models/transaction.model");
 const ledgerModel = require("../models/ledger.model");
 const accountModel = require("../models/account.model");
-const emailService = require("./email.service");
+const { enqueueEmail } = require("../queues/email.queue");
 const auditService = require("./audit.service");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
@@ -39,8 +39,7 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
 
     let transaction;
     try {
-      // 1. PESSIMISTIC LOCK: Lock the sender account document
-      // This serializes any concurrent transactions attempting to debit this account
+      // 1. PESSIMISTIC LOCK
       const lockedAccount = await accountModel.findOneAndUpdate(
         { _id: fromAccount, status: "ACTIVE" },
         { $set: { updatedAt: new Date() } },
@@ -55,7 +54,7 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
         throw new AppError("Recipient account is not active", 400, "ACCOUNT_NOT_ACTIVE");
       }
 
-      // 2. BALANCE CHECK: Calculate balance strictly inside the transaction
+      // 2. BALANCE CHECK
       const balanceData = await ledgerModel.aggregate([
         { $match: { account: new mongoose.Types.ObjectId(fromAccount) } },
         {
@@ -106,11 +105,17 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
       session.endSession();
     }
 
-    // Fire-and-forget email
+    // Fire-and-forget email via BullMQ
     if (user?.email) {
-      emailService
-        .sendTransactionEmail(user.email, user.name, amount, toUserAccount._id)
-        .catch((err) => logger.error({ message: "Failed to send transaction email", error: err.message }));
+      await enqueueEmail("Transaction Email", {
+        type: "TRANSACTION",
+        payload: {
+          to: user.email,
+          name: user.name,
+          amount,
+          toAccountId: toUserAccount._id,
+        },
+      });
     }
 
     logger.info({ message: "Transaction completed", transactionId: transaction._id, fromAccount, toAccount, amount });

@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const userModel = require("../models/user.model");
 const tokenBlacklistModel = require("../models/blacklist.model");
-const emailService = require("./email.service");
+const { enqueueEmail } = require("../queues/email.queue");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
 const redisClient = require("../config/redis");
@@ -20,8 +20,10 @@ async function registerUser({ email, password, name }) {
     { expiresIn: "3d" }
   );
 
-  emailService.sendRegistrationEmail(user.email, user.name).catch((err) => {
-    logger.error({ message: "Failed to send registration email", error: err.message });
+  // Enqueue registration email (Asynchronous, retries automatically)
+  await enqueueEmail("Registration Email", {
+    type: "REGISTRATION",
+    payload: { to: user.email, name: user.name },
   });
 
   logger.info({ message: "User registered", userId: user._id, email: user.email });
