@@ -3,6 +3,7 @@ const userModel = require("../models/user.model");
 const tokenBlacklistModel = require("../models/blacklist.model");
 const emailService = require("./email.service");
 const ApiError = require("../utils/apiError");
+const logger = require("../utils/logger");
 
 async function registerUser({ email, password, name }) {
   const isExists = await userModel.findOne({ email });
@@ -10,11 +11,7 @@ async function registerUser({ email, password, name }) {
     throw new ApiError(422, "User already exists");
   }
 
-  const user = await userModel.create({
-    email,
-    password,
-    name,
-  });
+  const user = await userModel.create({ email, password, name });
 
   const token = jwt.sign(
     { userId: user._id },
@@ -22,17 +19,14 @@ async function registerUser({ email, password, name }) {
     { expiresIn: "3d" }
   );
 
-  // Send registration email asynchronously without blocking response
   emailService.sendRegistrationEmail(user.email, user.name).catch((err) => {
-    console.error("Failed to send registration email:", err.message);
+    logger.error({ message: "Failed to send registration email", error: err.message });
   });
 
+  logger.info({ message: "User registered", userId: user._id, email: user.email });
+
   return {
-    user: {
-      _id: user._id,
-      email: user.email,
-      name: user.name,
-    },
+    user: { _id: user._id, email: user.email, name: user.name },
     token,
   };
 }
@@ -54,12 +48,10 @@ async function loginUser({ email, password }) {
     { expiresIn: "3d" }
   );
 
+  logger.info({ message: "User logged in", userId: user._id });
+
   return {
-    user: {
-      _id: user._id,
-      email: user.email,
-      name: user.name,
-    },
+    user: { _id: user._id, email: user.email, name: user.name },
     token,
   };
 }
@@ -68,13 +60,9 @@ async function logoutUser(token) {
   if (!token) {
     return { message: "User Logout Successfully" };
   }
-
   await tokenBlacklistModel.create({ token });
+  logger.info({ message: "Token blacklisted on logout" });
   return { message: "Logout Successfully" };
 }
 
-module.exports = {
-  registerUser,
-  loginUser,
-  logoutUser,
-};
+module.exports = { registerUser, loginUser, logoutUser };

@@ -4,6 +4,7 @@ const ledgerModel = require("../models/ledger.model");
 const accountModel = require("../models/account.model");
 const emailService = require("./email.service");
 const ApiError = require("../utils/apiError");
+const logger = require("../utils/logger");
 
 async function createTransaction({ fromAccount, toAccount, amount, idempotencyKey, user }) {
   if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
@@ -116,9 +117,17 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
   // Send email asynchronously
   if (user && user.email) {
     emailService.sendTransactionEmail(user.email, user.name, amount, toUserAccount._id).catch((err) => {
-      console.error("Failed to send transaction email:", err.message);
+      logger.error({ message: "Failed to send transaction email", error: err.message });
     });
   }
+
+  logger.info({
+    message: "Transaction completed",
+    transactionId: transaction._id,
+    fromAccount,
+    toAccount,
+    amount,
+  });
 
   return {
     statusCode: 200,
