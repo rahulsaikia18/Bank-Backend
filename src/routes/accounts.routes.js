@@ -1,7 +1,6 @@
 const express = require("express");
-const authMiddleware  = require("../middleware/auth.middlware");
-const accountController = require("../controller/account.controller");
-
+const { authMiddleware } = require("../middleware/auth.middleware");
+const accountController = require("../controllers/account.controller");
 
 const router = express.Router();
 
@@ -10,21 +9,20 @@ const router = express.Router();
  * - Create a new account
  * - Protected route, requires authentication
  */
-
-router.post("/", authMiddleware.authMiddleware ,accountController.createAccount  )
+router.post("/", authMiddleware, accountController.createAccount);
 
 /**
  * - GET /api/accounts/
  * - Get User accounts
  * - Protected route, requires authentication
  */
-router.get("/", authMiddleware.authMiddleware ,accountController.getUsrAccount  )
+router.get("/", authMiddleware, accountController.getUserAccounts);
 
 /**
  * - GET /api/accounts/balance/:accountId
  * - Get account balance
  * - Protected route, requires authentication
  */
-router.get("/balance/:accountId", authMiddleware.authMiddleware ,accountController.getAccountBalance  )
+router.get("/balance/:accountId", authMiddleware, accountController.getAccountBalance);
 
 module.exports = router;

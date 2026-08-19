@@ -1,17 +1,17 @@
 const mongoose = require("mongoose");
 
-const transectionSchema = new mongoose.Schema(
+const transactionSchema = new mongoose.Schema(
   {
     fromAccount: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "account",
-      required: [true, "From account is required for creating transection"],
+      required: [true, "From account is required for creating transaction"],
       index: true,
     },
     toAccount: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "account",
-      required: [true, "To Account is required for creating transection "],
+      required: [true, "To Account is required for creating transaction"],
       index: true,
     },
     status: {
@@ -22,24 +22,23 @@ const transectionSchema = new mongoose.Schema(
       },
       default: "PENDING",
     },
-
     amount: {
       type: Number,
-      required: [true, "Amount is required for creating transection"],
+      required: [true, "Amount is required for creating transaction"],
       min: [0, "Amount must be greater than or equal to 0"],
     },
     idempotencyKey: {
       type: String,
-      required: [true, "Idempotency key is required for creating transection"],
+      required: [true, "Idempotency key is required for creating transaction"],
       index: true,
       unique: true,
     },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-const transectionModel = mongoose.model("transection", transectionSchema);
+const transactionModel = mongoose.model("transaction", transactionSchema);
 
-module.exports = transectionModel;
+module.exports = transactionModel;

@@ -5,14 +5,14 @@ const userSchema = new mongoose.Schema(
   {
     email: {
       type: String,
-      required: [true, "Email is required for crating user"],
+      required: [true, "Email is required for creating user"],
       trim: true,
       lowercase: true,
       match: [
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
         "Please fill a valid email address",
       ],
-      unique: [true, "Email already exists"],
+      unique: true,
     },
     name: {
       type: String,
@@ -24,34 +24,30 @@ const userSchema = new mongoose.Schema(
       minlength: [6, "Password must be at least 6 characters long"],
       select: false,
     },
-    systemUser:{
+    systemUser: {
       type: Boolean,
       default: false,
       immutable: true,
       select: false,
-    }
+    },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-userSchema.pre("save", async function (nexT) {
+userSchema.pre("save", async function () {
   if (!this.isModified("password")) {
-    return nexT();
+    return;
   }
-
   const hash = await bcrypt.hash(this.password, 10);
   this.password = hash;
-
-  return ;
 });
 
-userSchema.methods.comparePassword = async function (password) {
-  // console.log(password,this.password)
-  return await bcrypt.compare(password, this.password);
-}
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
-const userModel = mongoose.model("user",userSchema);
+const userModel = mongoose.model("user", userSchema);
 
 module.exports = userModel;

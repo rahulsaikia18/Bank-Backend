@@ -14,10 +14,10 @@ const ledgerSchema = new mongoose.Schema(
       required: [true, "Amount is required for creating ledger entry"],
       immutable: true,
     },
-    transection: {
+    transaction: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "transection",
-      required: [true, "Ledger entry must be associated with a transection"],
+      ref: "transaction",
+      required: [true, "Ledger entry must be associated with a transaction"],
       index: true,
       immutable: true,
     },
@@ -33,7 +33,7 @@ const ledgerSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 function preventLedgerModification() {
