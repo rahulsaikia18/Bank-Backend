@@ -31,27 +31,54 @@ async function createTransaction({ fromAccount, toAccount, amount, idempotencyKe
     }
   }
 
-  // Account status check
-  if (fromUserAccount.status !== "ACTIVE" || toUserAccount.status !== "ACTIVE") {
-    throw new AppError("One or both accounts are not active", 400, "ACCOUNT_NOT_ACTIVE");
-  }
-
-  // Balance check
-  const balance = await fromUserAccount.getBalance();
-  if (balance < amount) {
-    throw new AppError(
-      `Insufficient balance. Available: ${balance}, Requested: ${amount}`,
-      400,
-      "INSUFFICIENT_BALANCE"
-    );
-  }
-
   // Atomic MongoDB session transaction
   const session = await mongoose.startSession();
   session.startTransaction();
 
   let transaction;
   try {
+    // 1. PESSIMISTIC LOCK: Lock the sender account document
+    // This serializes any concurrent transactions attempting to debit this account
+    const lockedAccount = await accountModel.findOneAndUpdate(
+      { _id: fromAccount, status: "ACTIVE" },
+      { $set: { updatedAt: new Date() } },
+      { session, new: true }
+    );
+
+    if (!lockedAccount) {
+      throw new AppError("Account not found or inactive", 400, "ACCOUNT_NOT_ACTIVE");
+    }
+
+    if (toUserAccount.status !== "ACTIVE") {
+      throw new AppError("Recipient account is not active", 400, "ACCOUNT_NOT_ACTIVE");
+    }
+
+    // 2. BALANCE CHECK: Calculate balance strictly inside the transaction
+    const balanceData = await ledgerModel.aggregate([
+      { $match: { account: new mongoose.Types.ObjectId(fromAccount) } },
+      {
+        $group: {
+          _id: null,
+          totalDebit: { $sum: { $cond: [{ $eq: ["$type", "DEBIT"] }, "$amount", 0] } },
+          totalCredit: { $sum: { $cond: [{ $eq: ["$type", "CREDIT"] }, "$amount", 0] } },
+        },
+      },
+      {
+        $project: { _id: 0, balance: { $subtract: ["$totalCredit", "$totalDebit"] } },
+      },
+    ]).session(session);
+
+    const balance = balanceData.length > 0 ? balanceData[0].balance : 0;
+
+    if (balance < amount) {
+      throw new AppError(
+        `Insufficient balance. Available: ${balance}, Requested: ${amount}`,
+        400,
+        "INSUFFICIENT_BALANCE"
+      );
+    }
+
+    // 3. EXECUTE: Create records
     [transaction] = await transactionModel.create(
       [{ fromAccount, toAccount, amount, idempotencyKey, status: "PENDING" }],
       { session }
