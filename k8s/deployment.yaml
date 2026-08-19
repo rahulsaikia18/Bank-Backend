@@ -1,0 +1,83 @@
+# ─── Deployment: run the Bank API pods ───────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-api
+  namespace: default
+  labels:
+    app: bank-api
+spec:
+  # Start with 2 replicas — HPA will scale this up/down automatically
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: bank-api
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # At most 1 pod unavailable during rollout → zero downtime deploys
+      maxUnavailable: 1
+      # Spin up 1 extra pod before removing old ones
+      maxSurge: 1
+
+  template:
+    metadata:
+      labels:
+        app: bank-api
+    spec:
+      # Graceful shutdown: give the app 30s to drain connections
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: bank-api
+          # Updated automatically by CD workflow via :sha-<commit> or :latest
+          image: ghcr.io/your-org/bank-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: http
+
+          # ── Environment ───────────────────────────────────────────────────
+          envFrom:
+            # Non-sensitive config from ConfigMap
+            - configMapRef:
+                name: bank-api-config
+            # Sensitive values from Secret
+            - secretRef:
+                name: bank-api-secret
+
+          # ── Resource management ───────────────────────────────────────────
+          # requests: guaranteed allocation for scheduling
+          # limits:   hard cap — container is killed if exceeded
+          resources:
+            requests:
+              cpu: "100m"      # 0.1 CPU core
+              memory: "128Mi"
+            limits:
+              cpu: "500m"      # 0.5 CPU core
+              memory: "512Mi"
+
+          # ── Liveness Probe ────────────────────────────────────────────────
+          # If this fails repeatedly → Kubernetes restarts the container
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15   # Give the app time to connect to DB/Redis
+            periodSeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+          # ── Readiness Probe ───────────────────────────────────────────────
+          # If this fails → pod is removed from the Service load balancer
+          # (traffic stops going to this pod, but it isn't restarted)
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5

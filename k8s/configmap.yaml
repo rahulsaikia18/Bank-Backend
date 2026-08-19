@@ -1,0 +1,14 @@
+# ─── ConfigMap: non-sensitive runtime configuration ──────────────────────────
+# These values are safe to commit. Sensitive values go in secret.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bank-api-config
+  namespace: default
+  labels:
+    app: bank-api
+data:
+  NODE_ENV: "production"
+  PORT: "5000"
+  MONGO_DB_NAME: "bankdb"
+  LOG_LEVEL: "info"

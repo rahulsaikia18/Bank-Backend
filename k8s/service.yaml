@@ -1,0 +1,26 @@
+# ─── Service: stable internal networking ─────────────────────────────────────
+#
+# ClusterIP exposes the pods only inside the cluster.
+# The Ingress (ingress.yaml) is the single external entry point.
+#
+# Why not LoadBalancer directly?
+#   LoadBalancer creates a cloud LB per service (expensive).
+#   One Ingress controller handles all services → far more cost-efficient.
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: bank-api-service
+  namespace: default
+  labels:
+    app: bank-api
+spec:
+  type: ClusterIP
+  selector:
+    # Routes traffic to all pods with this label (matches Deployment template)
+    app: bank-api
+  ports:
+    - name: http
+      port: 80          # Port the Service listens on inside the cluster
+      targetPort: 5000  # Port the container actually runs on
+      protocol: TCP

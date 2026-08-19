@@ -1,0 +1,51 @@
+# ─── Ingress: external HTTP/HTTPS entry point ────────────────────────────────
+#
+# Prerequisites:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
+#
+# TLS certificate managed by cert-manager (Let's Encrypt):
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+#
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bank-api-ingress
+  namespace: default
+  labels:
+    app: bank-api
+  annotations:
+    # Route to the correct service
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+    # Security headers
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Body size limit — prevents very large payloads
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+
+    # Rate limiting at Nginx layer (defence in depth on top of Redis limiter)
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+
+    # TLS certificate issued automatically by cert-manager + Let's Encrypt
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+spec:
+  ingressClassName: nginx
+
+  tls:
+    - hosts:
+        - api.yourbank.com   # ← replace with your real domain
+      secretName: bank-api-tls-cert
+
+  rules:
+    - host: api.yourbank.com  # ← replace with your real domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bank-api-service
+                port:
+                  number: 80
