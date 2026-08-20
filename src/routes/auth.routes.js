@@ -13,6 +13,9 @@ router.post("/register", authLimiter, validate(registerSchema), authController.u
 // POST /api/auth/login
 router.post("/login", authLimiter, validate(loginSchema), authController.userLoginController);
 
+// POST /api/auth/refresh
+router.post("/refresh", authController.refreshTokenController);
+
 // POST /api/auth/logout
 router.post("/logout", authController.userLogoutController);
 

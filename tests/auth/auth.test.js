@@ -17,6 +17,7 @@ describe('Authentication', () => {
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
       expect(res.body.user.email).toBe(testUser.email);
     });
 
@@ -43,6 +44,7 @@ describe('Authentication', () => {
       expect(res.statusCode).toEqual(200);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
     });
 
     it('should fail with invalid password', async () => {
@@ -95,6 +97,35 @@ describe('Authentication', () => {
         
       expect(res.statusCode).toEqual(401);
       expect(res.body.code).toBe('TOKEN_EXPIRED');
+    });
+  });
+
+  describe('Refresh Token', () => {
+    let refreshToken;
+    beforeEach(async () => {
+      const res = await request(app).post('/api/auth/register').send(testUser);
+      refreshToken = res.body.refreshToken;
+    });
+
+    it('should return a new access token when a valid refresh token is provided', async () => {
+      const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.token).toBeDefined();
+    });
+
+    it('should fail with an invalid refresh token', async () => {
+      const res = await request(app).post('/api/auth/refresh').send({ refreshToken: 'invalid_refresh_token' });
+
+      expect(res.statusCode).toEqual(401);
+      expect(res.body.code).toBe('UNAUTHORIZED');
+    });
+
+    it('should fail if refresh token is omitted', async () => {
+      const res = await request(app).post('/api/auth/refresh').send({});
+
+      expect(res.statusCode).toEqual(401);
     });
   });
 });

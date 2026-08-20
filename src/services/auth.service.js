@@ -1,6 +1,8 @@
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const userModel = require("../models/user.model");
 const tokenBlacklistModel = require("../models/blacklist.model");
+const refreshTokenModel = require("../models/refreshToken.model");
 const { enqueueEmail } = require("../queues/email.queue");
 const AppError = require("../utils/AppError");
 const logger = require("../utils/logger");
@@ -17,8 +19,20 @@ async function registerUser({ email, password, name }) {
   const token = jwt.sign(
     { userId: user._id },
     process.env.JWT_SECRET,
-    { expiresIn: "3d" }
+    { expiresIn: "15m" }
   );
+
+  const refreshToken = jwt.sign(
+    { userId: user._id, jti: crypto.randomUUID() },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + "_refresh",
+    { expiresIn: "7d" }
+  );
+
+  await refreshTokenModel.create({
+    token: refreshToken,
+    user: user._id,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+  });
 
   // Enqueue registration email (Asynchronous, retries automatically)
   await enqueueEmail("Registration Email", {
@@ -31,6 +45,7 @@ async function registerUser({ email, password, name }) {
   return {
     user: { _id: user._id, email: user.email, name: user.name },
     token,
+    refreshToken,
   };
 }
 
@@ -48,23 +63,70 @@ async function loginUser({ email, password }) {
   const token = jwt.sign(
     { userId: user._id },
     process.env.JWT_SECRET,
-    { expiresIn: "3d" }
+    { expiresIn: "15m" }
   );
+
+  const refreshToken = jwt.sign(
+    { userId: user._id, jti: crypto.randomUUID() },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + "_refresh",
+    { expiresIn: "7d" }
+  );
+
+  await refreshTokenModel.create({
+    token: refreshToken,
+    user: user._id,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+  });
 
   logger.info({ message: "User logged in", userId: user._id });
 
   return {
     user: { _id: user._id, email: user.email, name: user.name },
     token,
+    refreshToken,
   };
 }
 
-async function logoutUser(token) {
-  if (!token) {
-    return { message: "User Logout Successfully" };
+async function refreshAccessToken(refreshToken) {
+  if (!refreshToken) {
+    throw new AppError("Refresh token is required", 401, "UNAUTHORIZED");
   }
-  await tokenBlacklistModel.create({ token });
-  logger.info({ message: "Token blacklisted on logout" });
+
+  const existingToken = await refreshTokenModel.findOne({ token: refreshToken });
+  if (!existingToken) {
+    throw new AppError("Invalid refresh token", 401, "UNAUTHORIZED");
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + "_refresh");
+    const user = await userModel.findById(decoded.userId);
+    if (!user) {
+      throw new AppError("User not found", 404, "USER_NOT_FOUND");
+    }
+
+    const newAccessToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    logger.info({ message: "Access token refreshed", userId: user._id });
+
+    return { token: newAccessToken };
+  } catch (error) {
+    await refreshTokenModel.deleteOne({ token: refreshToken }); // invalidate if expired/invalid
+    throw new AppError("Invalid or expired refresh token", 401, "UNAUTHORIZED");
+  }
+}
+
+async function logoutUser(token, refreshToken) {
+  if (token) {
+    await tokenBlacklistModel.create({ token });
+  }
+  if (refreshToken) {
+    await refreshTokenModel.deleteOne({ token: refreshToken });
+  }
+  logger.info({ message: "User logged out, tokens invalidated" });
   return { message: "Logout Successfully" };
 }
 
@@ -91,4 +153,4 @@ async function getUserProfile(userId) {
   return user;
 }
 
-module.exports = { registerUser, loginUser, logoutUser, getUserProfile };
+module.exports = { registerUser, loginUser, logoutUser, refreshAccessToken, getUserProfile };
